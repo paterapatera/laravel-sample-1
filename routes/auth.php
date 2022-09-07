@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\Api;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -38,22 +39,7 @@ Route::group(['middleware' => ['api']], function () {
     $twoFactorLimiter = config('fortify.limiters.two-factor');
     $verificationLimiter = config('fortify.limiters.verification', '6,1');
 
-    Route::post('/login', function (Request $request, \Laravel\Fortify\LoginRateLimiter  $limiter) {
-        return (new \Illuminate\Routing\Pipeline(app()))->send($request)->through(array_filter([
-            \Laravel\Fortify\Actions\EnsureLoginIsNotThrottled::class,
-            RedirectIfTwoFactorAuthenticatable::class,
-            \Laravel\Fortify\Actions\AttemptToAuthenticate::class,
-            function ($request, $next) use ($limiter) {
-                $limiter->clear($request);
-                return $next($request);
-            },
-        ]))->then(function ($request) {
-            return response()->json([
-                'token' => auth()->user()->createToken('sample')->plainTextToken,
-                'two_factor' => false,
-            ]);
-        });
-    })->middleware(array_filter([
+    Route::post('/login', Api\Login\Controller::class)->middleware(array_filter([
         'guest:sanctum',
         $limiter ? 'throttle:' . $limiter : null,
     ]));
