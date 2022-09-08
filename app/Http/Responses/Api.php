@@ -11,6 +11,11 @@ class Api
         return response()->json($output);
     }
 
+    static public function noContent(): JsonResponse
+    {
+        return response()->json('', 204);
+    }
+
     static public function badRequest(mixed $output): JsonResponse
     {
         return response()->json($output, 400);

@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Http\Controllers\Auth\Api\Login;
+namespace App\Http\Controllers\Auth\Api\TwoFactorChallenge;
 
-use App\Auth\Applications\Login\Output;
+use App\Auth\Applications\TwoFactorChallenge\Output;
 
 class ResponseMapper
 {
@@ -10,7 +10,6 @@ class ResponseMapper
     {
         return [
             'token' => $output->token,
-            'twoFactor' => $output->twoFactor,
         ];
     }
 }

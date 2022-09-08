@@ -44,30 +44,20 @@ Route::group(['middleware' => ['api']], function () {
         $limiter ? 'throttle:' . $limiter : null,
     ]));
 
-    Route::post('/logout', function (Request $request, \Illuminate\Contracts\Auth\StatefulGuard $guard, \Laravel\Fortify\LoginRateLimiter  $limiter) {
-        return (new \Illuminate\Routing\Pipeline(app()))->send($request)->through(array_filter([
-            function ($request, $next) use ($guard, $limiter) {
-                auth()->user()?->tokens()->delete();
-                $guard->logout();
-                return $next($request);
-            },
-        ]))->then(function ($request) {
-            return response()->json('', 204);
-        });
-    })->middleware(['auth:sanctum'])->name('logout');
+    Route::post('/logout', Api\Logout\Controller::class)->middleware(['auth:sanctum']);
 
     // Password Reset...
     Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
-        ->middleware(['guest:' . config('fortify.guard')])
+        ->middleware(['guest:sanctum'])
         ->name('password.email');
 
     Route::post('/reset-password', [NewPasswordController::class, 'store'])
-        ->middleware(['guest:' . config('fortify.guard')])
+        ->middleware(['guest:sanctum'])
         ->name('password.update');
 
     // Registration...
     Route::post('/register', [RegisteredUserController::class, 'store'])
-        ->middleware(['guest:' . config('fortify.guard')]);
+        ->middleware(['guest:sanctum']);
 
     // Email Verification...
     // Route::get('/email/verify/{id}/{hash}', [VerifyEmailController::class, '__invoke'])
@@ -98,72 +88,11 @@ Route::group(['middleware' => ['api']], function () {
         ->name('password.confirm');
 
     // Two Factor Authentication...
-    Route::post('/two-factor-challenge', function (Request $request, \Illuminate\Contracts\Auth\StatefulGuard $guard, \Laravel\Fortify\LoginRateLimiter  $limiter) {
-
-        $throwFailedAuthenticationException = function ($request) use ($limiter) {
-            $limiter->increment($request);
-
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                \Laravel\Fortify\Fortify::username() => [trans('auth.failed')],
-            ]);
-        };
-        $fireFailedEvent = function ($request, $user = null) {
-            event(new \Illuminate\Auth\Events\Failed(config('fortify.guard'), $user, [
-                \Laravel\Fortify\Fortify::username() => $request->{\Laravel\Fortify\Fortify::username()},
-                'password' => $request->password,
-            ]));
-        };
-        $validateCredentials = function (Request $request) use ($guard, $fireFailedEvent, $throwFailedAuthenticationException) {
-            $model = $guard->getProvider()->getModel();
-
-            return tap($model::where(\Laravel\Fortify\Fortify::username(), $request->{\Laravel\Fortify\Fortify::username()})->first(), function ($user) use ($guard, $throwFailedAuthenticationException, $fireFailedEvent, $request) {
-                if (!$user || !$guard->getProvider()->validateCredentials($user, ['password' => $request->password])) {
-                    $fireFailedEvent($request, $user);
-
-                    $throwFailedAuthenticationException($request);
-                }
-            });
-        };
-
-        $validRecoveryCode = function () use ($request, $validateCredentials) {
-            if (!$request->recovery_code) {
-                return;
-            }
-
-            return collect($validateCredentials($request)->recoveryCodes())->first(function ($code) use ($request) {
-                return hash_equals($request->recovery_code, $code) ? $code : null;
-            });
-        };
-
-        $hasValidCode = function () use ($request, $validateCredentials) {
-            return $request->code && app(\Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider::class)->verify(
-                decrypt($validateCredentials($request)->two_factor_secret),
-                $request->code
-            );
-        };
-
-        $request->validate([
-            'code' => 'nullable|string',
-            'recovery_code' => 'nullable|string',
-        ]);
-
-        $user = $validateCredentials($request);
-
-        if ($code = $validRecoveryCode()) {
-            $user->replaceRecoveryCode($code);
-
-            event(new \Laravel\Fortify\Events\RecoveryCodeReplaced($user, $code));
-        } elseif (!$hasValidCode()) {
-            return app(\Laravel\Fortify\Contracts\FailedTwoFactorLoginResponse::class)->toResponse($request);
-        }
-
-        $guard->login($user);
-
-        return response()->json(['token' => $user->createToken('sample')->plainTextToken,]);
-    })->middleware(array_filter([
-        'guest:sanctum',
-        $twoFactorLimiter ? 'throttle:' . $twoFactorLimiter : null,
-    ]));
+    Route::post('/two-factor-challenge', Api\TwoFactorChallenge\Controller::class)
+        ->middleware(array_filter([
+            'guest:sanctum',
+            $twoFactorLimiter ? 'throttle:' . $twoFactorLimiter : null,
+        ]));
 
     $twoFactorMiddleware = Features::optionEnabled(Features::twoFactorAuthentication(), 'confirmPassword')
         ? ['auth:sanctum', 'password.confirm']

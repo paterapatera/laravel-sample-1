@@ -11,7 +11,7 @@ class Service
     ) {
     }
 
-    public function run()
+    public function run(): Output
     {
         $key = 'sample';
         return new Output(

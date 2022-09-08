@@ -9,6 +9,12 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
+use App\Auth\Domains\Auth\Auth;
+use App\Auth\Domains\Auth\Email;
+use App\Auth\Domains\Auth\Password;
+use App\Auth\Domains\Auth\TwoFactorRecoveryCodes;
+use App\Auth\Domains\Auth\TwoFactorSecret;
+
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
@@ -42,4 +48,23 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    static public function toDomain(User $user): Auth
+    {
+        $auth = new Auth(
+            new Email($user->email),
+            new Password($user->password),
+            $user,
+        );
+        $auth->twoFactorRecoveryCodes = valmap(
+            $user->two_factor_recovery_codes,
+            fn ($v) => new TwoFactorRecoveryCodes($v)
+        );
+        $auth->twoFactorSecret = valmap(
+            $user->two_factor_secret,
+            fn ($v) => new TwoFactorSecret($v)
+        );
+
+        return $auth;
+    }
 }
