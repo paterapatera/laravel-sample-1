@@ -1,6 +1,8 @@
 <?php
 
+use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Facades\Route;
 
 /*
