@@ -1,0 +1,10 @@
+parameters:
+
+  level: max
+
+  paths:
+    - app
+
+  excludePaths:
+    - app/**/*.spec.php
+  
