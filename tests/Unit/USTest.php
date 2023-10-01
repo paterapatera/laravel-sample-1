@@ -7,35 +7,6 @@ use PHPUnit\Framework\TestCase;
 
 class USTest extends TestCase
 {
-    public function test_get(): void
-    {
-        $user = [
-            'profile' => [
-                'name' => 'aoyama yuta',
-                'age' => '27',
-                'birthday' => '1986-11-27',
-            ],
-            'contact' => [
-                'tel' => '111-1111-1111',
-                'address' => 'kanagawa hiragimachi',
-            ],
-            'comments' => [
-                'こんにちは',
-                'こんばんは',
-                'おはよう',
-            ],
-        ];
-        $profile = Record::get(['profile'])($user);
-        $this->assertEquals([
-            'name' => 'aoyama yuta',
-            'age' => '27',
-            'birthday' => '1986-11-27',
-        ], $profile);
-
-        $tel = Record::get(['contact', 'tel'])($user);
-        $this->assertEquals('111-1111-1111', $tel);
-    }
-
     public function test_map(): void
     {
         $fruits = [
@@ -103,5 +74,108 @@ class USTest extends TestCase
         $this->assertEquals([2, 3], Record::tail([1, 2, 3]));
         $this->assertEquals(['y' => 2, 'z' => 3], Record::tail(['x' => 1, 'y' => 2, 'z' => 3]));
         $this->assertEquals([], Record::tail(['x' => 1]));
+    }
+
+    public function test_lens(): void
+    {
+        $lensLast = Record::lensByPath(['profile', 'name', 'last']);
+
+        $user = [
+            'profile' => [
+                'name' => [
+                    'first' => 'yuta',
+                    'last' => 'aoyama',
+                ],
+                'comments' => [1, 2, 3],
+            ],
+        ];
+        $this->assertEquals('aoyama', $lensLast['get']($user));
+        $this->assertEquals([
+            'profile' => [
+                'name' => [
+                    'first' => 'yuta',
+                    'last' => 'saitou',
+                ],
+                'comments' => [1, 2, 3],
+            ],
+        ], $lensLast['set']($user, 'saitou'));
+
+        $lensComments2 = Record::lensByPath(['profile', 'comments', 2]);
+        $this->assertEquals([
+            'profile' => [
+                'name' => [
+                    'first' => 'yuta',
+                    'last' => 'aoyama',
+                ],
+                'comments' => [1, 2, 8],
+            ],
+        ], $lensComments2['set']($user, 8));
+    }
+
+    public function test_diff(): void
+    {
+        $user = [
+            'profile' => [
+                'name' => [
+                    'first' => 'yuta',
+                    'last' => 'aoyama',
+                ],
+                'comments' => [1, 2, 3],
+            ],
+        ];
+        $user2 = [
+            'profile' => [
+                'name' => [
+                    'first' => 'hajime',
+                    'last' => 'aoyama',
+                ],
+                'comments' => [1, 2, 8],
+            ],
+        ];
+        $userDiff = Record::diff($user2)($user);
+        $this->assertEquals([
+            'profile' => [
+                'name' => [
+                    'first' => 'hajime',
+                ],
+                'comments' => [2 => 8],
+            ],
+        ], $userDiff);
+    }
+
+    public function test_update(): void
+    {
+        $user = [
+            'profile' => [
+                'name' => [
+                    'first' => 'yuta',
+                    'last' => 'aoyama',
+                ],
+                'comments' => [1, 2, 3],
+            ],
+        ];
+        $user2 = [
+            'profile' => [
+                'name' => [
+                    'first' => 'hajime',
+                    'last' => 'aoyama2',
+                ],
+                'comments' => [1, 2, 8, 8],
+            ],
+        ];
+        $userDiff = Record::diff($user2)($user);
+        $updatedUser = [];
+        if (is_array($userDiff)) {
+            $updatedUser = Record::update($userDiff, $user);
+        }
+        $this->assertEquals([
+            'profile' => [
+                'name' => [
+                    'first' => 'hajime',
+                    'last' => 'aoyama2',
+                ],
+                'comments' => [1, 2, 8, 8],
+            ],
+        ], $updatedUser);
     }
 }

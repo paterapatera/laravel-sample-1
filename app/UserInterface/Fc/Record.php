@@ -6,19 +6,83 @@ namespace App\UserInterface\Fc;
 
 class Record
 {
-    /** @param list<string> $paths */
-    static function get(array $paths): callable
+    const NO_DIFF = '_NO-DIFF';
+    /**
+     * @param list<array-key> $lensKeys
+     * @return array{get: callable, set: callable}
+     */
+    static function lensByPath(array $lensKeys): array
     {
-        return function (array $record) use ($paths) {
-            $current = $record;
-            foreach ($paths as $path) {
-                if (!array_key_exists($path, $current)) {
-                    $message = '存在しないキーを取得しようとしています|paths: ';
-                    throw new \Exception($message . json_encode($paths));
-                }
-                $current = $current[$path];
+        $head = self::head($lensKeys);
+        $tail = self::tail($lensKeys);
+        $mapLens = self::map(fn ($key) => self::lens($key));
+        return array_reduce(
+            $mapLens($tail),
+            self::lensCompose(...),
+            self::lens($head)
+        );
+    }
+
+    /**
+     * @param array{get: callable, set: callable} $lens1
+     * @param array{get: callable, set: callable} $lens2
+     * @return array{get: callable, set: callable}
+     */
+    static function lensCompose(array $lens1, array $lens2): array
+    {
+        return [
+            'get' => fn (array $record) => $lens2['get']($lens1['get']($record)),
+            'set' => fn (array $record, $value) => $lens1['set']($record, $lens2['set']($lens1['get']($record), $value))
+        ];
+    }
+
+    /**
+     * @param array-key $key
+     * @return array{get: callable, set: callable}
+     */
+    static function lens($key): array
+    {
+        return [
+            'get' => self::get($key),
+            'set' => self::set($key),
+        ];
+    }
+
+    /**
+     * @param array-key $key
+     */
+    static function set(string|int $key): callable
+    {
+        return function (array $record, mixed $value) use ($key) {
+            return [...$record, $key => $value];
+        };
+    }
+
+    /**
+     * @param array-key $key
+     */
+    static function get(string|int $key): callable
+    {
+        return function (array $record) use ($key) {
+            if (!array_key_exists($key, $record)) {
+                $message = '存在しないキーを取得しようとしています|paths: ';
+                throw new \Exception($message . json_encode($key));
             }
-            return $current;
+            return $record[$key];
+        };
+    }
+
+    /**
+     * @param array-key $key
+     */
+    static function getOr(string|int $key, mixed $deffault = null): callable
+    {
+        return function (array $record) use ($key, $deffault) {
+            try {
+                return self::get($key)($record);
+            } catch (\Exception $_) {
+                return $deffault;
+            }
         };
     }
 
@@ -69,14 +133,14 @@ class Record
     }
 
     /**
-     * @param list<string> $paths
+     * @param list<array-key> $paths
      * @return callable(mixed[]): boolean
      */
     static function has(array $paths): callable
     {
         return function (array $record) use ($paths) {
             try {
-                self::get($paths)($record);
+                self::lensByPath($paths)['get']($record);
                 return true;
             } catch (\Exception $e) {
                 return false;
@@ -131,6 +195,94 @@ class Record
         return fn ($idetity) => array_reduce($funcs, $compose, $idetity);
     }
 
+    /**
+     * @template V of array
+     * @param V $data1
+     * @param V $data2
+     * @return array<mixed>
+     */
+    static function diffObjects(array $data1, array $data2): array
+    {
+        if ($data1 === $data2) {
+            return [];
+        }
+
+        $keys = array_unique(array_merge(array_keys($data1), array_keys($data2)));
+
+        $diffPrc = function ($current, $key) use ($data1, $data2) {
+            $getByKey = self::getOr($key);
+            $res = self::diff($getByKey($data2))($getByKey($data1));
+            if ((!is_array($res) || !empty($res)) &&
+                ($res !== self::NO_DIFF)
+            ) {
+                $current[$key] = $res;
+            }
+            return $current;
+        };
+        return array_reduce($keys, $diffPrc, []);
+    }
+
+    /**
+     * @template V
+     * @param V $data2
+     * @return callable(mixed): mixed
+     */
+    static function diff($data2): callable
+    {
+        return function ($data1) use ($data2) {
+            if (is_array($data1) && is_array($data2)) {
+                return self::diffObjects($data1, $data2);
+            }
+
+            if ($data1 !== $data2) {
+                return $data2;
+            }
+
+            return self::NO_DIFF;
+        };
+    }
+
+    /**
+     * @template V
+     * @param V $diffData
+     * @param array<array-key> $path
+     * @return (array{path: array<array-key>, value: V}|array{path: array<array-key>, value: V}[])
+     */
+    static function updatePaths($diffData, $path = [])
+    {
+        if (is_array($diffData)) {
+            $paths = [];
+            foreach ($diffData as $key => $value) {
+                $result = self::updatePaths($value, [...$path, $key]);
+                if (array_key_exists('path', $result)) {
+                    $paths[] = $result;
+                } else {
+                    $paths = [...$paths, ...$result];
+                }
+            }
+            return $paths;
+        } else {
+            return ['path' => $path, 'value' => $diffData];
+        }
+    }
+
+    /**
+     * @template V of array
+     * @template D of array
+     * @param V $diffData
+     * @phpstan-param D $data
+     * @return array<mixed>
+     */
+    static function update(array $diffData, array $data): array
+    {
+        $updatePaths = self::updatePaths($diffData);
+        return array_reduce(
+            $updatePaths,
+            fn ($current, $path) => self::lensByPath($path['path'])['set']($current, $path['value']),
+            $data,
+        );
+    }
+
     // /**
     //  * @template SRC of array
     //  * @template DIFF of array
@@ -154,29 +306,4 @@ class Record
     // {
     //     return array_replace_recursive($src, $diff);
     // }
-
-    // function diffObjects( data 1, data 2) {
-    //      // _.isArray は、 引数 が 配列 か どう かを 確認 する
-    //       var emptyObject = _.isArray( data 1) ? [] : {}; if( data 1 === data 2) { return emptyObject; }
-    //        // _.union は、 2 つ の 配列 から 一意 な 値 の 配列 を 作成 する
-    //         // （数学 における 2 つ の 集合 の 和集合 と 同じ）
-    //          var keys = _.union(_. keys( data 1), _.keys( data 2));
-    //           return _.reduce( keys, function (acc, k) {
-    //              var res = diff(_. get( data 1, k), _.get( data 2, k));
-    //               // _.isObject は、 引数 が コレクション（ マップ または 配列） か どう かを 確認 し、
-    // // _.isEmpty は、 引数 が 空 の コレクション か どう かを 確認 する
-    //  if((_. isObject( res) && _.isEmpty( res)) ||
-    //   // "no-diff" は、 2 つ の 値 が 同じ で ある こと を 示す 手段 で ある
-    //    (res === "no-diff")) { return acc;
-    //  } return _.set( acc, [k], res); }, emptyObject);
-    //  }
-    //   function diff( data 1, data 2) {
-    //      // _.isObject は、 引数 が コレクション（ マップ または 配列） か どう かを 確認 する
-    //       if(_. isObject( data 1) && _.isObject( data 2)) {
-    //          return diffObjects( data 1, data 2);
-    //          }
-    //           if( data 1 !== data 2) { return data 2; }
-    //            // "no-diff" は、 2 つ の 値 が 同じ で ある こと を 示す 手段
-    //             return "no-diff";
-    //          }
 }
