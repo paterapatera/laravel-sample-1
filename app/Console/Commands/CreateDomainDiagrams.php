@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\UserInterface\Object\Modeling;
 use App\UserInterface\Object\User as ObjectUser;
 use Illuminate\Console\Command;
 use Jasny\PhpdocParser\PhpdocParser;
@@ -73,19 +74,32 @@ class CreateDomainDiagrams extends Command
      */
     static public function toName(\ReflectionClass $ref): array
     {
-        $comment = $ref->getDocComment() ?: '';
         $tags = PhpDocumentor::tags()->with([new Summery()]);
         $parser = new PhpdocParser($tags);
+
+        $comment = $ref->getDocComment() ?: '';
         $meta = $parser->parse($comment);
+
         $classTree = [
             'summery' => $meta['summery'],
             'className' => $ref->getName(),
+            'properties' => [],
         ];
         $properties = collect($ref->getProperties());
         if ($properties->isNotEmpty()) {
             $classTree['properties'] = $properties
                 ->filter(Prop::isClass(...))
                 ->map(Prop::toReflectionClass(...))
+                ->map(self::toName(...))->toArray();
+        }
+        $attrs = collect($ref->getAttributes(Modeling::class));
+        if ($attrs->isNotEmpty()) {
+            $classTree['properties'] += $attrs
+                ->map(function ($attr) {
+                    $className = $attr->newInstance()->className;
+                    if (!ClassName::isClass($className)) throw new \Exception('このプロパティはクラスではありません: ' . $className);
+                    return new \ReflectionClass($className);
+                })
                 ->map(self::toName(...))->toArray();
         }
         return $classTree;
@@ -109,9 +123,9 @@ class Prop
     static function getClassName(\ReflectionProperty $prop): string
     {
         $type = $prop->getType();
-        if (!Type::isReflectionNamedType($type)) throw new \Exception('このプロパティはクラスではありません');
+        if (!Type::isReflectionNamedType($type)) throw new \Exception('このプロパティはクラスではありません: ' . $type);
         $className = $type->getName();
-        if (!ClassName::isClass($className)) throw new \Exception('このプロパティはクラスではありません');
+        if (!ClassName::isClass($className)) throw new \Exception('このプロパティはクラスではありません: ' . $className);
         return $className;
     }
 }

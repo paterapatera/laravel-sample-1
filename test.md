@@ -19,6 +19,9 @@ App\UserInterface\Object\User\Profile\Name\Last[姓]
 click App\UserInterface\Object\User\Profile\Name\Last "https://github.com/paterapatera/laravel-sample-1/tree/main/app/UserInterface/Object/User/Profile/Name/Last.php" _blank
 App\UserInterface\Object\User\CommentList[コメントリスト]
 click App\UserInterface\Object\User\CommentList "https://github.com/paterapatera/laravel-sample-1/tree/main/app/UserInterface/Object/User/CommentList.php" _blank
+App\UserInterface\Object\User\CommentList --> App\UserInterface\Object\User\CommentList\Comment
+App\UserInterface\Object\User\CommentList\Comment[コメント]
+click App\UserInterface\Object\User\CommentList\Comment "https://github.com/paterapatera/laravel-sample-1/tree/main/app/UserInterface/Object/User/CommentList/Comment.php" _blank
 ```
 ## ユーザー
 ```mermaid
