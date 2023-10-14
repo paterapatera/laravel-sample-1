@@ -58,7 +58,6 @@ class CreateDomainDiagrams extends Command
     {
         print_r("{$name['className']}[{$name['summery']}]\n");
         $filePath = self::convertFilePath($name['className']);
-        var_dump($filePath);
         print_r("click {$name['className']} \"https://github.com/paterapatera/laravel-sample-1/tree/main/{$filePath}.php\" _blank\n");
 
         foreach ($name['properties'] as $prop) {
