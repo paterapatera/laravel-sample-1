@@ -11,6 +11,9 @@ use Jasny\PhpdocParser\Tag\Summery;
 
 class CreateDomainDiagrams extends Command
 {
+    const DIR = 'doc/design/';
+    const FILE = 'domain-model.md';
+
     /**
      * The name and signature of the console command.
      *
@@ -27,25 +30,55 @@ class CreateDomainDiagrams extends Command
 
     public function handle(): void
     {
-        $refs = [
-            new \ReflectionClass(ObjectUser::class),
-            new \ReflectionClass(User::class),
-        ];
-        $names = array_map(self::toName(...), $refs);
-        self::outputMarkdown($names);
+        self::createDir();
+        $file = self::file();
+        try {
+            $refs = [
+                new \ReflectionClass(ObjectUser::class),
+                new \ReflectionClass(User::class),
+            ];
+            $names = array_map(self::toName(...), $refs);
+            self::outputMarkdown($names, $file);
+        } finally {
+            if ($file) {
+                fclose($file);
+            }
+        }
     }
 
 
-    /** @phpstan-ignore-next-line */
-    static public function outputMarkdown(array $names): void
+    static public function createDir(): void
     {
-        print_r("# ドメインモデル図\n");
+        if (!file_exists(base_path(self::DIR))) {
+            mkdir(base_path(self::DIR), 0777, recursive: true);
+        }
+    }
+
+    /**
+     * @return resource|false
+     */
+    static public function file(): mixed
+    {
+        return fopen(base_path(self::DIR . self::FILE), 'w');
+    }
+
+    /**
+     * ファイル全体の書き出し
+     * 
+     * @param resource|false $file
+     * @phpstan-ignore-next-line
+     */
+    static public function outputMarkdown(array $names, mixed $file): void
+    {
+        if (!$file) throw new \RuntimeException('ファイルが見つかりません');
+
+        fwrite($file, "# ドメインモデル図\n");
         foreach ($names as $name) {
-            print_r("## {$name['summery']}\n");
-            print_r("```mermaid\n");
-            print_r("flowchart TD\n");
-            self::outputMermaid($name);
-            print_r("```\n");
+            fwrite($file, "## {$name['summery']}\n");
+            fwrite($file, "```mermaid\n");
+            fwrite($file, "flowchart TD\n");
+            self::outputMermaid($name, $file);
+            fwrite($file, "```\n");
         }
     }
 
@@ -54,18 +87,28 @@ class CreateDomainDiagrams extends Command
         return str_replace(['App', '\\'], ['app', '/'], $name);
     }
 
-    /** @phpstan-ignore-next-line */
-    static public function outputMermaid(array $name): void
+    /**
+     * ドメインごとのMermaidの書き出し
+     * 
+     * @param resource|false $file
+     * @phpstan-ignore-next-line
+     */
+    static public function outputMermaid(array $name, mixed $file): void
     {
-        print_r("{$name['className']}[{$name['summery']}]\n");
+        if (!$file) throw new \RuntimeException('ファイルが見つかりません');
+
+        fwrite($file, "{$name['className']}[{$name['summery']}]\n");
         $filePath = self::convertFilePath($name['className']);
-        print_r("click {$name['className']} \"https://github.com/paterapatera/laravel-sample-1/tree/main/{$filePath}.php\" _blank\n");
+        fwrite($file, "click {$name['className']} \"https://github.com/paterapatera/laravel-sample-1/tree/main/{$filePath}.php\" _blank\n");
 
         foreach ($name['properties'] as $prop) {
-            print_r("{$name['className']} --> {$prop['className']}\n");
+            fwrite($file, "{$name['className']} --> {$prop['className']}\n");
         }
 
-        array_map(self::outputMermaid(...), $name['properties']);
+        array_map(
+            fn ($nextName) => self::outputMermaid($nextName, $file),
+            $name['properties']
+        );
     }
 
     /**
