@@ -23,18 +23,3 @@ App\UserInterface\Object\User\CommentList --> App\UserInterface\Object\User\Comm
 App\UserInterface\Object\User\CommentList\Comment[コメント]
 click App\UserInterface\Object\User\CommentList\Comment "https://github.com/paterapatera/laravel-sample-1/tree/main/app/UserInterface/Object/User/CommentList/Comment.php" _blank
 ```
-## ユーザー
-```mermaid
-flowchart TD
-App\Console\Commands\User[ユーザー]
-click App\Console\Commands\User "https://github.com/paterapatera/laravel-sample-1/tree/main/app/Console/Commands/User.php" _blank
-App\Console\Commands\User --> App\Console\Commands\Contact
-App\Console\Commands\Contact[連絡先]
-click App\Console\Commands\Contact "https://github.com/paterapatera/laravel-sample-1/tree/main/app/Console/Commands/Contact.php" _blank
-App\Console\Commands\Contact --> App\Console\Commands\Tel
-App\Console\Commands\Contact --> App\Console\Commands\Email
-App\Console\Commands\Tel[電話番号]
-click App\Console\Commands\Tel "https://github.com/paterapatera/laravel-sample-1/tree/main/app/Console/Commands/Tel.php" _blank
-App\Console\Commands\Email[メールアドレス]
-click App\Console\Commands\Email "https://github.com/paterapatera/laravel-sample-1/tree/main/app/Console/Commands/Email.php" _blank
-```
